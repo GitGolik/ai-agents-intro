@@ -1,0 +1,7 @@
+.venv/
+venv/
+.env
+__pycache__/
+*.py[cod]
+output/study_guide.md
+.DS_Store
