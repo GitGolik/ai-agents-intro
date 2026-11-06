@@ -67,3 +67,33 @@ MODEL_NAME=ollama_chat/qwen2.5-coder:1.5b
 - `.env` n’est jamais commité.
 - `.venv/` n’est jamais commité.
 - Aucune clé API n’est présente dans le dépôt.
+
+
+## Explainer Agent example
+
+Command:
+
+```bash
+python main.py "Python decorators"
+```
+
+Example output:
+
+## Explanation
+A decorator is a function that modifies another function without changing its code. It is placed above a function using the `@` symbol.
+
+## Key concepts
+- Function
+- Wrapper function
+- `@decorator` syntax
+- Reusable behavior
+
+## Example
+```python
+def say_hello():
+    print("Hello!")
+
+say_hello()
+```
+
+This example defines and calls a simple function.
