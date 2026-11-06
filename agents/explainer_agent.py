@@ -1,30 +1,37 @@
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.tools import FunctionTool
 
-MODEL_NAME = "qwen2.5-coder:1.5b"  # remplace par ton modèle Ollama, ex. llama3.2:3b
+from tools.file_writer import save_markdown_file
+
+MODEL_NAME = "qwen2.5-coder:1.5b"
 
 explainer_agent = Agent(
     name="explainer_agent",
     model=LiteLlm(model=f"ollama_chat/{MODEL_NAME}"),
-    description="Explains programming topics clearly to beginner students.",
+    description="Explains programming topics and saves the explanation as Markdown.",
     instruction="""
 You are a programming teacher for beginner students.
 
-For the topic provided by the user, answer in Markdown with exactly these sections:
+First, explain the topic provided by the user.
+
+Then, use the save_markdown_file tool to save the explanation.
+
+Use this file path:
+output/explainer_output.md
+
+Your Markdown content must contain exactly these sections:
 
 ## Explanation
-Write a short explanation of 2 to 4 sentences. Use simple language.
+A short explanation of 2 to 4 sentences.
 
 ## Key concepts
-Write a bullet list of 3 to 5 key concepts. Keep each item short.
+A bullet list of 3 to 5 key concepts.
 
 ## Example
-Give one simple, complete code example when possible. Add a brief explanation of the example.
+One simple code example with a brief explanation.
 
-Rules:
-- Use Markdown.
-- Do not add any other section.
-- Do not ask follow-up questions.
-- Keep the answer concise and beginner-friendly.
+After saving the file, tell the user the file has been saved.
 """,
+    tools=[FunctionTool(save_markdown_file)],
 )
