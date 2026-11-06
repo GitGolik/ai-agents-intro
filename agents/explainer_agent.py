@@ -1,37 +1,44 @@
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
-from google.adk.tools import FunctionTool
-
-from tools.file_writer import save_markdown_file
 
 MODEL_NAME = "qwen2.5-coder:1.5b"
 
 explainer_agent = Agent(
     name="explainer_agent",
     model=LiteLlm(model=f"ollama_chat/{MODEL_NAME}"),
-    description="Explains programming topics and saves the explanation as Markdown.",
+    description=(
+        "Creates a beginner-friendly Markdown study guide "
+        "for a programming topic."
+    ),
     instruction="""
 You are a programming teacher for beginner students.
 
-First, explain the topic provided by the user.
+Create a Markdown study guide for the topic provided by the user.
 
-Then, use the save_markdown_file tool to save the explanation.
+Use exactly these Markdown headings, in this exact order:
 
-Use this file path:
-output/explainer_output.md
-
-Your Markdown content must contain exactly these sections:
-
-## Explanation
-A short explanation of 2 to 4 sentences.
-
-## Key concepts
-A bullet list of 3 to 5 key concepts.
-
+## Topic
+## Simple Explanation
+## Key Concepts
 ## Example
-One simple code example with a brief explanation.
+## Practice Exercise
+## Common Mistakes
+## Review Comments
+## Final Summary
 
-After saving the file, tell the user the file has been saved.
+Rules:
+- Use Markdown.
+- Write clear and simple explanations for beginners.
+- Write 2 to 4 sentences in "Simple Explanation".
+- Write 3 to 5 bullet points in "Key Concepts".
+- Include one complete code example in "Example".
+- Write one short practice exercise in "Practice Exercise".
+- Write 2 or 3 common mistakes in "Common Mistakes".
+- Write a short review comment in "Review Comments".
+- Write a short final summary in "Final Summary".
+- Do not add any other section.
+- Do not ask follow-up questions.
+- Do not explain what you are doing.
+- Return only the Markdown study guide.
 """,
-    tools=[FunctionTool(save_markdown_file)],
 )
