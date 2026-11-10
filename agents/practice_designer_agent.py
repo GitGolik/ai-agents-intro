@@ -1,11 +1,15 @@
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 
-MODEL_NAME = "qwen2.5-coder:1.5b"
+from config import OLLAMA_API_BASE, OLLAMA_MODEL
+
 
 practice_designer_agent = Agent(
     name="practice_designer_agent",
-    model=LiteLlm(model=f"ollama_chat/{MODEL_NAME}"),
+    model=LiteLlm(
+        model=f"ollama_chat/{OLLAMA_MODEL}",
+        api_base=OLLAMA_API_BASE,
+    ),
     description=(
         "Creates a short beginner-friendly practice exercise "
         "based on a programming topic and an existing explanation."

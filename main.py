@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 
+import httpx
+
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -11,10 +13,67 @@ from agents.reviewer_agent import reviewer_agent
 from tools.file_writer import save_markdown_file
 from tools.validation import validate_required_sections
 
+from config import OLLAMA_API_BASE, OLLAMA_MODEL
+
 
 APP_NAME = "study_guide_app"
 USER_ID = "student"
 OUTPUT_FILE = "output/study_guide.md"
+
+
+def validate_topic(topic: str) -> str:
+    """Validate the topic provided on the command line."""
+    cleaned_topic = topic.strip()
+
+    if not cleaned_topic:
+        raise ValueError(
+            "Topic cannot be empty. "
+            "Example: python main.py 'Python decorators'"
+        )
+
+    return cleaned_topic
+
+
+async def check_ollama_is_running() -> None:
+    """Check that the configured Ollama server is reachable."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(f"{OLLAMA_API_BASE}/api/tags")
+
+        if response.status_code != 200:
+            raise ConnectionError(
+                f"Ollama returned HTTP {response.status_code} "
+                f"at {OLLAMA_API_BASE}."
+            )
+    except httpx.ConnectError as error:
+        raise ConnectionError(
+            f"Cannot connect to Ollama at {OLLAMA_API_BASE}. "
+            "Start Ollama with 'ollama serve' and check that it is running."
+        ) from error
+
+
+async def check_model_is_available() -> None:
+    """Check that the configured Ollama model is installed."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(f"{OLLAMA_API_BASE}/api/tags")
+
+        response.raise_for_status()
+        models = response.json().get("models", [])
+        model_names = [model.get("name", "") for model in models]
+
+        if OLLAMA_MODEL not in model_names:
+            available_models = ", ".join(model_names) or "none"
+
+            raise ValueError(
+                f"Ollama model '{OLLAMA_MODEL}' is not available. "
+                f"Available models: {available_models}. "
+                f"Install it with: ollama pull {OLLAMA_MODEL}"
+            )
+    except httpx.HTTPError as error:
+        raise ConnectionError(
+            f"Could not check Ollama models at {OLLAMA_API_BASE}: {error}"
+        ) from error
 
 
 async def run_agent(agent, message_text: str) -> str:
@@ -42,26 +101,59 @@ async def run_agent(agent, message_text: str) -> str:
 
     response = "The agent did not return a response."
 
-    async for event in runner.run_async(
-        user_id=USER_ID,
-        session_id=session_id,
-        new_message=message,
-    ):
-        if event.is_final_response() and event.content and event.content.parts:
-            for part in event.content.parts:
-                if part.text:
-                    response = part.text.strip()
-                    break
+    try:
+        async for event in runner.run_async(
+            user_id=USER_ID,
+            session_id=session_id,
+            new_message=message,
+        ):
+            if (
+                event.is_final_response()
+                and event.content
+                and event.content.parts
+            ):
+                for part in event.content.parts:
+                    if part.text:
+                        response = part.text.strip()
+                        break
 
-            if response != "The agent did not return a response.":
-                break
+                if response != "The agent did not return a response.":
+                    break
+    except Exception as error:
+        raise RuntimeError(
+            f"The agent '{agent.name}' failed while generating a response. "
+            f"Check that Ollama is running and that '{OLLAMA_MODEL}' "
+            f"is installed. Original error: {error}"
+        ) from error
 
     return response
 
 
-async def create_study_guide(topic: str) -> str:
-    """Generate an explanation, practice exercise, and review comments."""
-    print("Running the Explainer Agent...")
+def assemble_draft(topic: str, explanation: str, practice: str) -> str:
+    """Build the draft study guide before the review step."""
+    return f"""# {topic}
+
+{explanation}
+
+---
+
+{practice}
+"""
+
+
+def assemble_final_markdown(draft: str, review: str) -> str:
+    """Add the reviewer output to the draft study guide."""
+    return f"""{draft}
+
+---
+
+{review}
+"""
+
+
+async def run_study_guide_workflow(topic: str) -> str:
+    """Run the complete sequential study-guide workflow."""
+    print("1. Running the Explainer Agent...")
 
     explanation = await run_agent(
         explainer_agent,
@@ -69,7 +161,7 @@ async def create_study_guide(topic: str) -> str:
         f"for this topic: {topic}",
     )
 
-    print("Running the Practice Designer Agent...")
+    print("2. Running the Practice Designer Agent...")
 
     practice_prompt = f"""
 Topic:
@@ -82,14 +174,20 @@ Create a short beginner-friendly practice exercise based on this topic
 and explanation.
 """
 
-    practice_exercise = await run_agent(
+    practice = await run_agent(
         practice_designer_agent,
         practice_prompt,
     )
 
-    print("Running the Reviewer Agent...")
+    print("3. Assembling the draft study guide...")
 
-    draft = f"{explanation}\n\n---\n\n{practice_exercise}"
+    draft = assemble_draft(
+        topic=topic,
+        explanation=explanation,
+        practice=practice,
+    )
+
+    print("4. Running the Reviewer Agent...")
 
     review_prompt = f"""
 Review the following draft study guide.
@@ -106,7 +204,32 @@ Do not rewrite the entire guide.
         review_prompt,
     )
 
-    return f"{draft}\n\n---\n\n{review}"
+    print("5. Assembling the final Markdown study guide...")
+
+    return assemble_final_markdown(
+        draft=draft,
+        review=review,
+    )
+
+
+def validate_and_save(markdown_content: str) -> None:
+    """Validate the final Markdown and save it when valid."""
+    print("6. Validating the required sections...")
+
+    validation = validate_required_sections(markdown_content)
+
+    if validation["is_valid"]:
+        print("7. Saving the Markdown study guide...")
+
+        save_result = save_markdown_file(OUTPUT_FILE, markdown_content)
+        print(save_result)
+    else:
+        missing_sections = ", ".join(validation["missing_sections"])
+
+        print(
+            "The study guide is incomplete. "
+            f"Missing sections: {missing_sections}"
+        )
 
 
 def main():
@@ -120,27 +243,36 @@ def main():
     parser.add_argument(
         "topic",
         nargs="?",
-        default="Python decorators",
+        default="",
         help="Programming topic to explain",
     )
 
     args = parser.parse_args()
 
-    print(f"Creating study guide for: {args.topic}\n")
+    try:
+        topic = validate_topic(args.topic)
 
-    study_guide = asyncio.run(create_study_guide(args.topic))
+        asyncio.run(check_ollama_is_running())
+        asyncio.run(check_model_is_available())
 
-    print(study_guide)
-    print()
+        print(f"Starting study-guide workflow for: {topic}\n")
 
-    validation = validate_required_sections(study_guide)
+        final_markdown = asyncio.run(run_study_guide_workflow(topic))
 
-    if validation["is_valid"]:
-        save_result = save_markdown_file(OUTPUT_FILE, study_guide)
-        print(save_result)
-    else:
-        missing = ", ".join(validation["missing_sections"])
-        print(f"The study guide is incomplete. Missing sections: {missing}")
+        print(final_markdown)
+        print()
+
+        validate_and_save(final_markdown)
+
+    except ValueError as error:
+        print(f"Configuration or input error: {error}")
+        raise SystemExit(1)
+    except ConnectionError as error:
+        print(f"Connection error: {error}")
+        raise SystemExit(1)
+    except RuntimeError as error:
+        print(f"Agent error: {error}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

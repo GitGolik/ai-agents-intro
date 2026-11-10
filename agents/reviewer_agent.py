@@ -1,11 +1,15 @@
 from google.adk.agents import Agent
 from google.adk.models.lite_llm import LiteLlm
 
-MODEL_NAME = "qwen2.5-coder:1.5b"
+from config import OLLAMA_API_BASE, OLLAMA_MODEL
+
 
 reviewer_agent = Agent(
     name="reviewer_agent",
-    model=LiteLlm(model=f"ollama_chat/{MODEL_NAME}"),
+    model=LiteLlm(
+        model=f"ollama_chat/{OLLAMA_MODEL}",
+        api_base=OLLAMA_API_BASE,
+    ),
     description=(
         "Reviews a draft programming study guide for clarity, "
         "completeness, and usefulness."

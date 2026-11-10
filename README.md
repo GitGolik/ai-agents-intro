@@ -1,99 +1,80 @@
-## Configuration de l’environnement
+## Troubleshooting
 
-### Environnement Python
+### Missing environment variables
 
-Le venv contient uniquement les dépendances Python du projet.
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install google-adk litellm python-dotenv
-```
-
-Dépendances installées dans le venv :
-
-- `google-adk`
-- `litellm`
-- `python-dotenv`
-
-### Ollama
-
-Ollama est installé **en dehors du venv**, au niveau du système.
-
-```bash
-curl -fsSL [https://ollama.com/install.sh](https://ollama.com/install.sh) | sh
-ollama -v
-ollama serve
-```
-
-### Modèle local
-
-Modèle utilisé : `qwen2.5-coder:1.5b`
-
-```bash
-ollama pull qwen2.5-coder:1.5b
-ollama list
-ollama run qwen2.5-coder:1.5b
-```
-
-Le modèle est téléchargé et géré par Ollama. Il n’est pas installé avec `pip`.
-
-### Test du modèle
-
-```bash
-ollama run qwen2.5-coder:1.5b
-```
-
-Prompt :
+If you see:
 
 ```text
-Explique les décorateurs Python en trois phrases.
+Missing required environment variable: OLLAMA_API_BASE
 ```
 
-### Variables d’environnement
+Create a `.env` file from `.env.example`:
 
 ```bash
 cp .env.example .env
 ```
 
-```text
+Then set:
+
+```env
 OLLAMA_API_BASE=http://localhost:11434
-MODEL_NAME=ollama_chat/qwen2.5-coder:1.5b
+OLLAMA_MODEL=qwen2.5-coder:1.5b
 ```
 
-### Sécurité
+### Ollama is not running
 
-- `.env` n’est jamais commité.
-- `.venv/` n’est jamais commité.
-- Aucune clé API n’est présente dans le dépôt.
+If you see:
 
+```text
+Cannot connect to Ollama at http://localhost:11434
+```
 
-## Explainer Agent example
+Start Ollama:
 
-Command:
+```bash
+ollama serve
+```
+
+Then verify:
+
+```bash
+ollama list
+```
+
+### Model is not available
+
+If you see:
+
+```text
+Ollama model 'qwen2.5-coder:1.5b' is not available
+```
+
+Install the model:
+
+```bash
+ollama pull qwen2.5-coder:1.5b
+```
+
+You can also use another installed model by changing `OLLAMA_MODEL` in `.env`.
+
+### Empty topic
+
+Run the program with a topic:
 
 ```bash
 python main.py "Python decorators"
 ```
 
-Example output:
+### Validation failure
 
-## Explanation
-A decorator is a function that modifies another function without changing its code. It is placed above a function using the `@` symbol.
+If you see:
 
-## Key concepts
-- Function
-- Wrapper function
-- `@decorator` syntax
-- Reusable behavior
-
-## Example
-```python
-def say_hello():
-    print("Hello!")
-
-say_hello()
+```text
+The study guide is incomplete. Missing sections: ...
 ```
 
-This example defines and calls a simple function.
+Run the command again. Local models can sometimes omit a required Markdown heading.
+
+### File-writing error
+
+If you see a file-writing error, check that the `output/` directory is writable and that you have enough disk space.
