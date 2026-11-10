@@ -7,13 +7,13 @@ from google.genai import types
 
 from agents.explainer_agent import explainer_agent
 from agents.practice_designer_agent import practice_designer_agent
+from agents.reviewer_agent import reviewer_agent
 from tools.file_writer import save_markdown_file
 from tools.validation import validate_required_sections
 
 
 APP_NAME = "study_guide_app"
 USER_ID = "student"
-SESSION_ID = "study-guide-session"
 OUTPUT_FILE = "output/study_guide.md"
 
 
@@ -21,7 +21,7 @@ async def run_agent(agent, message_text: str) -> str:
     """Run one ADK agent and return its final text response."""
     session_service = InMemorySessionService()
 
-    session_id = f"{SESSION_ID}-{agent.name}"
+    session_id = f"{agent.name}-session"
 
     await session_service.create_session(
         app_name=APP_NAME,
@@ -60,12 +60,16 @@ async def run_agent(agent, message_text: str) -> str:
 
 
 async def create_study_guide(topic: str) -> str:
-    """Generate an explanation, then create a practice exercise."""
+    """Generate an explanation, practice exercise, and review comments."""
+    print("Running the Explainer Agent...")
+
     explanation = await run_agent(
         explainer_agent,
         f"Create a beginner-friendly Markdown study guide "
         f"for this topic: {topic}",
     )
+
+    print("Running the Practice Designer Agent...")
 
     practice_prompt = f"""
 Topic:
@@ -83,14 +87,33 @@ and explanation.
         practice_prompt,
     )
 
-    return f"{explanation}\n\n---\n\n{practice_exercise}"
+    print("Running the Reviewer Agent...")
+
+    draft = f"{explanation}\n\n---\n\n{practice_exercise}"
+
+    review_prompt = f"""
+Review the following draft study guide.
+
+Draft study guide:
+{draft}
+
+Review it for clarity, completeness, and usefulness for a beginner.
+Do not rewrite the entire guide.
+"""
+
+    review = await run_agent(
+        reviewer_agent,
+        review_prompt,
+    )
+
+    return f"{draft}\n\n---\n\n{review}"
 
 
 def main():
     parser = argparse.ArgumentParser(
         description=(
-            "Create a Markdown study guide and practice exercise "
-            "for a programming topic."
+            "Create a Markdown study guide, practice exercise, "
+            "and review comments for a programming topic."
         )
     )
 
